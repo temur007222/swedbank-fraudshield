@@ -56,32 +56,72 @@ export function LiveFeed({
     fetchInitial();
   }, []);
 
-  // SSE connection for live feed
+  // Live demo simulation — generates realistic fake transactions client-side
   useEffect(() => {
-    if (!isLive) {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      return;
+    if (!isLive) return;
+
+    const merchants = [
+      "Rimi Latvia", "Maxima", "Bolt", "Wolt", "Circle K",
+      "Lidl", "Amazon EU", "Binance", "Steam", "Telia",
+      "Booking.com", "Revolut Top-Up", "Western Union", "AliExpress",
+      "Swedbank ATM", "Narvesen", "Elkor", "airBaltic", "Printful",
+    ];
+    const countries = ["Latvia", "Estonia", "Lithuania", "Germany", "Sweden", "Finland", "Poland", "UK", "Nigeria", "Russia", "China", "Turkey"];
+    const countryCodes = ["LV", "EE", "LT", "DE", "SE", "FI", "PL", "GB", "NG", "RU", "CN", "TR"];
+    const names = [
+      "Customer-A1B2", "Customer-C3D4", "Customer-E5F6", "Customer-G7H8",
+      "Customer-I9J0", "Customer-K1L2", "Customer-M3N4", "Customer-O5P6",
+    ];
+    const riskLevels: Array<FeedTransaction["riskLevel"]> = ["LOW", "LOW", "LOW", "MEDIUM", "MEDIUM", "HIGH", "CRITICAL"];
+    const statuses = ["APPROVED", "APPROVED", "APPROVED", "FLAGGED", "BLOCKED", "UNDER_REVIEW", "ESCALATED"];
+
+    function generateTx(): FeedTransaction {
+      const countryIdx = Math.random() < 0.75
+        ? Math.floor(Math.random() * 8) // safe countries
+        : 8 + Math.floor(Math.random() * 4); // risky countries
+      const riskLevel = countryIdx >= 8
+        ? (Math.random() < 0.6 ? "HIGH" : "CRITICAL")
+        : riskLevels[Math.floor(Math.random() * riskLevels.length)];
+      const riskScore =
+        riskLevel === "CRITICAL" ? 0.85 + Math.random() * 0.15 :
+        riskLevel === "HIGH" ? 0.6 + Math.random() * 0.25 :
+        riskLevel === "MEDIUM" ? 0.3 + Math.random() * 0.3 :
+        Math.random() * 0.3;
+      const status =
+        riskLevel === "CRITICAL" ? "BLOCKED" :
+        riskLevel === "HIGH" ? (Math.random() < 0.5 ? "FLAGGED" : "ESCALATED") :
+        riskLevel === "MEDIUM" ? (Math.random() < 0.7 ? "APPROVED" : "FLAGGED") :
+        "APPROVED";
+      const amount =
+        riskLevel === "CRITICAL" ? 2000 + Math.random() * 8000 :
+        riskLevel === "HIGH" ? 500 + Math.random() * 3000 :
+        5 + Math.random() * 500;
+
+      return {
+        id: `sim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        externalId: `TXN-${Date.now().toString(36).toUpperCase().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+        timestamp: new Date().toISOString(),
+        amount: Math.round(amount * 100) / 100,
+        currency: "EUR",
+        merchantName: merchants[Math.floor(Math.random() * merchants.length)],
+        country: countries[countryIdx],
+        riskScore: Math.round(riskScore * 10000) / 10000,
+        riskLevel,
+        status,
+        customer: { anonymizedName: names[Math.floor(Math.random() * names.length)] },
+      };
     }
 
-    const es = new EventSource("/api/stream/transactions");
-    eventSourceRef.current = es;
+    // Push a new simulated transaction every 2-5 seconds
+    const interval = setInterval(() => {
+      const tx = generateTx();
+      setTransactions((prev) => [tx, ...prev].slice(0, maxItems));
+    }, 2000 + Math.random() * 3000);
 
-    es.onmessage = (event) => {
-      try {
-        const tx = JSON.parse(event.data) as FeedTransaction;
-        setTransactions((prev) => [tx, ...prev].slice(0, maxItems));
-      } catch {
-        // Ignore malformed messages
-      }
-    };
+    // Push one immediately
+    setTransactions((prev) => [generateTx(), ...prev].slice(0, maxItems));
 
-    return () => {
-      es.close();
-      eventSourceRef.current = null;
-    };
+    return () => clearInterval(interval);
   }, [isLive, maxItems]);
 
   if (loading) {
