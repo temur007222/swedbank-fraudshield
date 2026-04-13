@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id       String   @id @default(cuid())
+  email    String   @unique
+  password String
+  name     String
+  role     String   // BANK_ANALYST, TELECOM_OPERATOR, AUTHORITY_OFFICER
+  actions  Action[]
+}
+
+model Transaction {
+  id                String    @id @default(cuid())
+  externalId        String    @unique
+  timestamp         DateTime
+  customerId        String
+  customer          Customer  @relation(fields: [customerId], references: [id])
+  amount            Float
+  currency          String    @default("EUR")
+  type              String    // CARD, WIRE, ONLINE, ATM
+  merchantName      String
+  merchantCategory  String
+  country           String
+  countryCode       String
+  riskScore         Float
+  riskLevel         String    // LOW, MEDIUM, HIGH, CRITICAL
+  status            String    // PENDING, APPROVED, FLAGGED, BLOCKED, UNDER_REVIEW, ESCALATED
+  aiFlags           String    @default("[]")
+  aiExplanation     String?
+  featureImportance String    @default("{}")
+  actions           Action[]
+  alerts            Alert[]
+  createdAt         DateTime  @default(now())
+}
+
+model Customer {
+  id              String        @id @default(cuid())
+  anonymizedName  String
+  avgTransaction  Float
+  usualCountries  String        @default("[]")
+  usualMerchants  String        @default("[]")
+  accountAge      Int
+  riskProfile     String        // LOW, MEDIUM, HIGH, CRITICAL
+  transactions    Transaction[]
+}
+
+model Communication {
+  id             String    @id @default(cuid())
+  type           String    // SMS, EMAIL, PHONE_CALL
+  senderNumber   String?
+  senderEmail    String?
+  content        String?
+  timestamp      DateTime
+  fraudScore     Float
+  classification String
+  patterns       String    @default("[]")
+  linkedAlerts   Alert[]
+}
+
+model Alert {
+  id                     String         @id @default(cuid())
+  sourceRole             String         // BANK_ANALYST, TELECOM_OPERATOR, AUTHORITY_OFFICER
+  targetRole             String         // BANK_ANALYST, TELECOM_OPERATOR, AUTHORITY_OFFICER
+  transactionId          String?
+  transaction            Transaction?   @relation(fields: [transactionId], references: [id])
+  communicationId        String?
+  communication          Communication? @relation(fields: [communicationId], references: [id])
+  severity               String         // LOW, MEDIUM, HIGH, CRITICAL
+  status                 String         @default("OPEN") // OPEN, ACKNOWLEDGED, IN_PROGRESS, RESOLVED, DISMISSED
+  description            String
+  evidence               String         @default("[]")
+  chainOfResponsibility  String         @default("[]")
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  actions                Action[]
+}
+
+model Action {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  alertId       String?
+  alert         Alert?       @relation(fields: [alertId], references: [id])
+  actionType    String       // APPROVE, BLOCK, FLAG, ESCALATE, DISMISS, NOTE
+  details       String?
+  timestamp     DateTime     @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entityType  String
+  entityId    String
+  userId      String?
+  inputData   String   @default("{}")
+  outputData  String   @default("{}")
+  explanation String?
+  timestamp   DateTime @default(now())
+}

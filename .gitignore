@@ -26,7 +26,21 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
+
+# database
+prisma/dev.db
+prisma/dev.db-journal
+
+# generated files
+*.pdf
+*.pptx
+edit_pptx.py
+html2pdf*.mjs
+qa_prep.html
+speech.html
+SPEECH_4MIN.md
 
 # vercel
 .vercel
